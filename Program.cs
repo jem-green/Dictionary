@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace Dictionary
 {
@@ -41,10 +42,19 @@ namespace Dictionary
             Console.WriteLine("data[0]=" + d[0]);
             Console.WriteLine("data[2]=" + d[2]);
             //Console.WriteLine("data[2]=" + d[2]);
+
             foreach (int key in d.Keys)
             {
                 Console.WriteLine("Enumerate " + key);
             }
+
+            foreach (KeyValuePair<int,string> keyvalue in d)
+            {
+                Console.WriteLine("Enumerate " + keyvalue.Key + " " + keyvalue.Value);
+            }
+
+            //System.Collections.Generic.Dictionary<int,string>.KeyCollection keys = d.Keys;
+            //System.Collections.Generic.Dictionary<int, string>.ValueCollection values = d.Values;
 
             Console.WriteLine("--------");
             PersistentDictionary<int, string> pd = new PersistentDictionary<int, string>(true);
@@ -81,10 +91,21 @@ namespace Dictionary
             Console.WriteLine("data[2]=" + pd[2]);
             //Console.WriteLine("data[2]=" + pd[2]);
 
-            foreach (int key in d.Keys)
+            //foreach (int key in pd.Keys)
+            //{
+            //    Console.WriteLine("Enumerate " + key);
+            //}
+
+            //foreach (int key in pd.Values)
+            //{
+            //    Console.WriteLine("Enumerate " + key);
+            //}
+
+            foreach (KeyValuePair<int, string> keyvalue in pd)
             {
-                Console.WriteLine("Enumerate " + key);
+                Console.WriteLine("Enumerate " + keyvalue.Key + " " + keyvalue.Value);
             }
+
         }
     }
 }
