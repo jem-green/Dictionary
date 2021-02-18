@@ -37,18 +37,18 @@ namespace Dictionary
         // ...
         // 00 - unsigned int16 - pointer to data + 1 
         // 00 - unsigned int16 - length of data + 1
+        //
 
         #region Variables
 
-        string _path = "";
-        string _name = "PersistentDictionary";
+        private string _path = "";
+        private string _name = "PersistentDictionary";
         // Lets assume we will add the extension automatically but filename is not correct 
 
-        readonly object _lockObject = new Object();
-        UInt16 _size;
-        UInt16 _count;
-        UInt16 _pointer;
-        int _cursor;
+        private readonly object _lockObject = new Object();
+        private UInt16 _size = 0;
+        private UInt16 _pointer = 0;
+        private int _cursor;
         private bool disposedValue;
 
         #endregion
@@ -457,10 +457,10 @@ namespace Dictionary
                     _size--;
                     binaryWriter.Write(_size);                  // Write the size
 
-                    // There is no space so flag the record to indicate its spare
+                    // There is no space so flag the record to indicate its deleted
 
                     binaryWriter.Seek(pointer, SeekOrigin.Begin);
-                    byte flag = 2;
+                    byte flag = 1;
                     binaryWriter.Write(flag);
                     binaryWriter.Close();
 
@@ -548,7 +548,7 @@ namespace Dictionary
 
         public IEnumerator GetEnumerator()
         {
-            for (int cursor = _count; cursor < _size; cursor++)
+            for (int cursor = 0; cursor < _size; cursor++)
             {
                 // Return the current element and then on next function call 
                 // resume from next element rather than starting all over again;
