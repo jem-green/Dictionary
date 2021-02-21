@@ -5,7 +5,7 @@ using System.IO;
 
 namespace Dictionary
 {
-    class PersistentDictionary<TKey,TValue> : IEnumerator<TKey>
+    class PersistentDictionary<TKey,TValue> : IDictionary<TKey,TValue>, IEnumerator<TKey>
     {
         // Create a dictionary of key, value pairs that is actually a file
         // Need to consider locking as read and writes may conflict
@@ -94,15 +94,11 @@ namespace Dictionary
             }
         }
 
-        public string Path
-        {
+        public bool IsReadOnly
+        {   
             get
             {
-                return (_path);
-            }
-            set
-            {
-                _path = value;
+                return (false);
             }
         }
 
@@ -118,7 +114,23 @@ namespace Dictionary
             }
         }
 
-        // Make the indexer property.
+        public string Path
+        {
+            get
+            {
+                return (_path);
+            }
+            set
+            {
+                _path = value;
+            }
+        }
+
+        /// <summary>
+        /// Make the indexer property.
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
         public TValue this[TKey key]
         {
             get
@@ -314,20 +326,10 @@ namespace Dictionary
         #region Methods
 
         /// <summary>
-        /// Clear the Queue
+        /// Add a new key value pair at the end of the list
         /// </summary>
-        public void Clear()
-        {
-            lock (_lockObject)
-            {
-                Reset(_path, _name);
-            }
-        }
-
-        /// <summary>
-        /// Add a new item at the end of the list
-        /// </summary>
-        /// <param name="item"></param>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
         public void Add(TKey key, TValue value)
         {
             string filenamePath = System.IO.Path.Combine(_path, _name);
@@ -360,7 +362,7 @@ namespace Dictionary
                                                                     // ** https://en.wikipedia.org/wiki/LEB128
                 }
 
-				indexWriter.Write((UInt16)offset);
+                indexWriter.Write((UInt16)offset);
                 indexWriter.Close();
 
                 // Write the header
@@ -397,13 +399,330 @@ namespace Dictionary
         }
 
         /// <summary>
-        /// Remove item from the list
+        /// Add a new item at the end of the list
         /// </summary>
-        /// <param name="key"></param>
-        public void Remove(TKey key)
+        /// <param name="item"></param>
+        public void Add(KeyValuePair<TKey, TValue> item)
         {
             string filenamePath = System.IO.Path.Combine(_path, _name);
+            lock (_lockObject)
+            {
+                TKey key = item.Key;
+                TValue value = item.Value;
 
+                Type keyParameterType = typeof(TKey);
+                Type ValueParameterType = typeof(TValue);
+
+                // append the new pointer the new index file
+
+                BinaryWriter indexWriter = new BinaryWriter(new FileStream(filenamePath + ".idx", FileMode.Append));
+                indexWriter.Write(_pointer);  // Write the pointer
+
+                // Need to consider how data is stored
+                // so if int, string
+                // calculate the new pointers
+
+                int offset = 0;
+                offset = offset + 1;    // Including the flag
+                if (keyParameterType == typeof(int))
+                {
+                    offset = offset + 4;
+                }
+
+                if (ValueParameterType == typeof(string))
+                {
+                    UInt16 length = (UInt16)Convert.ToString(value).Length;
+                    offset = offset + LEB128.Size(length) + length; // Includes the byte length parameter
+                                                                    // ** need to watch this as can be 2 bytes if length is > 127 characters
+                                                                    // ** https://en.wikipedia.org/wiki/LEB128
+                }
+
+                indexWriter.Write((UInt16)offset);
+                indexWriter.Close();
+
+                // Write the header
+
+                BinaryWriter binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.OpenOrCreate));
+                binaryWriter.Seek(0, SeekOrigin.Begin);     // Move to start of the file
+                _size++;
+                binaryWriter.Write(_size);  				// Write the size
+                _pointer = (UInt16)(_pointer + offset);		//
+                binaryWriter.Write(_pointer);  				// Write the pointer
+                binaryWriter.Close();
+
+                // Write the data
+
+                // Appending will only work if the file is deleted and the updates start again
+                // Not sure if this is the best approach.
+                // Need to update the 
+
+                binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.Append));
+                byte flag = 0;
+                binaryWriter.Write(flag);
+                if (keyParameterType == typeof(int))
+                {
+                    int i = Convert.ToInt32(key);
+                    binaryWriter.Write(i);
+                }
+                if (ValueParameterType == typeof(string))
+                {
+                    string s = Convert.ToString(value);
+                    binaryWriter.Write(s);
+                }
+                binaryWriter.Close();
+            }
+        }
+
+        /// <summary>
+        /// Clear the Dictionary
+        /// </summary>
+        public void Clear()
+        {
+            lock (_lockObject)
+            {
+                Reset(_path, _name);
+            }
+        }
+
+        /// <summary>
+        /// Search the file and match on key and value
+        /// </summary>
+        /// <param name="item"></param>
+        /// <returns>true if file contains key</returns>
+        public bool Contains(KeyValuePair<TKey, TValue> item)
+        {
+            bool contains = false;
+            string filenamePath = System.IO.Path.Combine(_path, _name);
+            lock (_lockObject)
+            {
+                TKey key = item.Key;
+                TValue value = item.Value;
+
+                Type keyParameterType = typeof(TKey);
+                Type ValueParameterType = typeof(TValue);
+
+                // Logic is probably to open the index
+                // work through this and identify the data position in the file (note zero means that data is delted)
+                // read the data
+                // check if the data matches
+                // flag the match
+
+                object data;
+                BinaryReader binaryReader = new BinaryReader(new FileStream(filenamePath + ".bin", FileMode.Open));
+                BinaryReader indexReader = new BinaryReader(new FileStream(filenamePath + ".idx", FileMode.Open));
+                UInt16 pointer = 0;
+                for (int counter = 0; counter < _size; counter++)
+                {
+                    indexReader.BaseStream.Seek(counter * 4, SeekOrigin.Begin);                               // Get the index pointer
+                    pointer = indexReader.ReadUInt16();                                              // Read the pointer from the index file
+                    UInt16 offset = indexReader.ReadUInt16();
+
+                    binaryReader.BaseStream.Seek(pointer, SeekOrigin.Begin);                                // Move to the correct location in the data file
+                    byte flag = binaryReader.ReadByte();
+                    bool match = true;
+                    if (keyParameterType == typeof(int))
+                    {
+                        data = binaryReader.ReadInt32();
+                        if ((int)data != (int)Convert.ChangeType(key, typeof(int)))
+                        {
+                            match = match & false;
+                        }
+                    }
+
+                    if (match == true)
+                    {
+                        if (ValueParameterType == typeof(string))
+                        {
+                            data = binaryReader.ReadString();
+                            if ((string)data != (string)Convert.ChangeType(value, typeof(string)))
+                            {
+                                match = match & false;
+                            }
+                        }
+                    }
+
+                    if (match == true)
+                    {
+                        contains = true;
+                        // Need to store index, pointer
+                        break;
+                    }
+                }
+                binaryReader.Close();
+                indexReader.Close();
+            }
+            return (contains);
+        }
+
+        /// <summary>
+        /// Search the file and match on key
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns>true if file contains key</returns>
+        public bool ContainsKey(TKey key)
+        {
+            bool contains = false;
+            string filenamePath = System.IO.Path.Combine(_path, _name);
+            lock (_lockObject)
+            {
+                Type keyParameterType = typeof(TKey);
+                Type ValueParameterType = typeof(TValue);
+
+                // Logic is probably to open the index
+                // work through this and identify the data position in the file (note zero means that data is delted)
+                // read the data
+                // check if the data matches
+                // flag the match
+
+                object data;
+                BinaryReader binaryReader = new BinaryReader(new FileStream(filenamePath + ".bin", FileMode.Open));
+                BinaryReader indexReader = new BinaryReader(new FileStream(filenamePath + ".idx", FileMode.Open));
+                UInt16 pointer = 0;
+                for (int counter = 0; counter < _size; counter++)
+                {
+                    indexReader.BaseStream.Seek(counter * 4, SeekOrigin.Begin);                               // Get the index pointer
+                    pointer = indexReader.ReadUInt16();                                              // Read the pointer from the index file
+                    UInt16 offset = indexReader.ReadUInt16();
+
+                    binaryReader.BaseStream.Seek(pointer, SeekOrigin.Begin);                                // Move to the correct location in the data file
+                    byte flag = binaryReader.ReadByte();
+                    bool match = true;
+                    if (keyParameterType == typeof(int))
+                    {
+                        data = binaryReader.ReadInt32();
+                        if ((int)data == (int)Convert.ChangeType(key, typeof(int)))
+                        {
+                            contains = true;
+                            break;
+                        }
+                    }
+                }
+                binaryReader.Close();
+                indexReader.Close();
+            }
+            return (contains);
+        }
+
+        public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
+        {
+            throw new NotImplementedException();
+        }
+
+        object IEnumerator.Current
+        {
+            get
+            {
+                if ((_cursor < 0) || (_cursor == _size))
+                {
+                    throw new InvalidOperationException();
+                }
+                else
+                {
+                    return (Read(_path, _name, _cursor));
+                }
+            }
+        }
+
+        TKey IEnumerator<TKey>.Current
+        {
+            get
+            {
+                if ((_cursor < 0) || (_cursor == _size))
+                {
+                    throw new InvalidOperationException();
+                }
+                else
+                {
+                    return ((TKey)Convert.ChangeType(Read(_path, _name, _cursor), typeof(TValue)));
+                }
+            }
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects)
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                disposedValue = true;
+            }
+        }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // ~PersistentQueue()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
+
+        void IDisposable.Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerator GetEnumerator()
+        {
+            for (int cursor = 0; cursor < _size; cursor++)
+            {
+                // Return the current element and then on next function call 
+                // resume from next element rather than starting all over again;
+                yield return (Read(_path, _name, cursor));
+            }
+        }
+
+        IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Insrts a specific value at the index
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="item"></param>
+        public void Insert(int index, TValue item)
+        {
+            if (index <= _size)
+            {
+                Write(_path, _name, index, item);
+            }
+            else
+            {
+                throw new IndexOutOfRangeException();
+            }
+        }
+
+        public ICollection<TKey> Keys => throw new NotImplementedException();
+
+        bool IEnumerator.MoveNext()
+        {
+            bool moved = false;
+            if (_cursor < _size)
+            {
+                moved = true;
+            }
+            return (moved);
+        }
+
+        /// <summary>
+        /// Remove key value pair from the Dictionary
+        /// </summary>
+        /// <param name="key"></param>
+        public bool Remove(TKey key)
+        {
+            bool removed = false;
+            string filenamePath = System.IO.Path.Combine(_path, _name);
             lock (_lockObject)
             {
                 Type keyParameterType = typeof(TKey);
@@ -444,11 +763,7 @@ namespace Dictionary
                 binaryReader.Close();
                 indexReader.Close();
 
-                if (index == -1)
-                {
-                    throw new KeyNotFoundException();
-                }
-                else
+                if (index >= 0)
                 {
                     // Write the header
 
@@ -476,114 +791,145 @@ namespace Dictionary
                     {
                         indexReader.BaseStream.Seek((counter + 1) * 4, SeekOrigin.Begin); // Move to location of the index
                         pointer = indexReader.ReadUInt16();                                              // Read the pointer from the index file
-                    	UInt16 offset = indexReader.ReadUInt16();
+                        UInt16 offset = indexReader.ReadUInt16();
                         indexWriter.Seek(counter * 4, SeekOrigin.Begin); // Move to location of the index
                         indexWriter.Write(pointer);
-                    	indexWriter.Write(offset);
+                        indexWriter.Write(offset);
                     }
                     indexWriter.BaseStream.SetLength(_size * 4);    // Trim the file as Add uses append
                     indexWriter.Close();
                     indexReader.Close();
                     stream.Close();
+
+                    removed = true;
+
                 }
             }
+            return (removed);
         }
 
-        public void Insert(int index, TValue item)
+        /// <summary>
+        /// Remove item from the Dictionary
+        /// </summary>
+        /// <param name="item"></param>
+        /// <returns></returns>
+        public bool Remove(KeyValuePair<TKey, TValue> item)
         {
-            if (index <= _size)
+            bool removed = false;
+            string filenamePath = System.IO.Path.Combine(_path, _name);
+            lock (_lockObject)
             {
-                Write(_path, _name, index, item);
-            }
-            else
-            {
-                throw new IndexOutOfRangeException();
-            }
-        }
+                TKey key = item.Key;
+                TValue value = item.Value;
 
-        bool IEnumerator.MoveNext()
-        {
-            bool moved = false;
-            if (_cursor < _size)
-            {
-                moved = true;
-            }
-            return (moved);
-        }
+                Type keyParameterType = typeof(TKey);
+                Type ValueParameterType = typeof(TValue);
 
+                // Logic is probably to open the index
+                // work through this and identify the data position in the file (note zero means that data is delted)
+                // read the data
+                // check if the data matches
+                // remove the data
+                // update the index file by removing the refernce
+
+                object data;
+                BinaryReader binaryReader = new BinaryReader(new FileStream(filenamePath + ".bin", FileMode.Open));
+                BinaryReader indexReader = new BinaryReader(new FileStream(filenamePath + ".idx", FileMode.Open));
+                int index = -1;
+                UInt16 pointer = 0;
+                for (int counter = 0; counter < _size; counter++)
+                {
+                    indexReader.BaseStream.Seek(counter * 4, SeekOrigin.Begin);                               // Get the index pointer
+                    pointer = indexReader.ReadUInt16();                                              // Read the pointer from the index file
+                    UInt16 offset = indexReader.ReadUInt16();
+
+                    binaryReader.BaseStream.Seek(pointer, SeekOrigin.Begin);                                // Move to the correct location in the data file
+                    byte flag = binaryReader.ReadByte();
+
+                    bool match = true;
+                    if (keyParameterType == typeof(int))
+                    {
+                        data = binaryReader.ReadInt32();
+                        if ((int)data != (int)Convert.ChangeType(key, typeof(int)))
+                        {
+                            match = match & false;
+                        }
+                    }
+
+                    if (ValueParameterType == typeof(string))
+                    {
+                        data = binaryReader.ReadString();
+                        if ((string)data != (string)Convert.ChangeType(value, typeof(string)))
+                        {
+                            match = match & false;
+                        }
+                    }
+
+                    if (match == true)
+                    {
+                        index = counter;
+                        // Need to store index, pointer
+                        break;
+                    }
+                }
+                binaryReader.Close();
+                indexReader.Close();
+
+                if (index >= 0)
+                {
+                    // Write the header
+
+                    BinaryWriter binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.OpenOrCreate));
+                    binaryWriter.Seek(0, SeekOrigin.Begin); // Move to start of the file
+                    _size--;
+                    binaryWriter.Write(_size);                  // Write the size
+
+                    // There is no space so flag the record to indicate its deleted
+
+                    binaryWriter.Seek(pointer, SeekOrigin.Begin);
+                    byte flag = 1;
+                    binaryWriter.Write(flag);
+                    binaryWriter.Close();
+
+                    // Overwrite the index
+
+                    FileStream stream = new FileStream(filenamePath + ".idx", FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                    indexReader = new BinaryReader(stream);
+                    BinaryWriter indexWriter = new BinaryWriter(stream);
+
+                    // copy the ponter and length data downwards 
+
+                    for (int counter = index; counter < _size; counter++)
+                    {
+                        indexReader.BaseStream.Seek((counter + 1) * 4, SeekOrigin.Begin); // Move to location of the index
+                        pointer = indexReader.ReadUInt16();                                              // Read the pointer from the index file
+                        UInt16 offset = indexReader.ReadUInt16();
+                        indexWriter.Seek(counter * 4, SeekOrigin.Begin); // Move to location of the index
+                        indexWriter.Write(pointer);
+                        indexWriter.Write(offset);
+                    }
+                    indexWriter.BaseStream.SetLength(_size * 4);    // Trim the file as Add uses append
+                    indexWriter.Close();
+                    indexReader.Close();
+                    stream.Close();
+
+                    removed = true;
+
+                }
+            }
+            return (removed);
+        }
         void IEnumerator.Reset()
         {
             _cursor = -1;
         }
 
-        object IEnumerator.Current
+        public bool TryGetValue(TKey key, out TValue value)
         {
-            get
-            {
-                if ((_cursor < 0) || (_cursor == _size))
-                {
-                    throw new InvalidOperationException();
-                }
-                else
-                {
-                    return (Read(_path, _name, _cursor));
-                }
-            }
+            throw new NotImplementedException();
         }
 
-        TKey IEnumerator<TKey>.Current
-        {
-            get
-            {
-                if ((_cursor < 0) || (_cursor == _size))
-                {
-                    throw new InvalidOperationException();
-                }
-                else
-                {
-                    return ((TKey)Convert.ChangeType(Read(_path, _name, _cursor), typeof(TValue)));
-                }
-            }
-        }
-
-        public IEnumerator GetEnumerator()
-        {
-            for (int cursor = 0; cursor < _size; cursor++)
-            {
-                // Return the current element and then on next function call 
-                // resume from next element rather than starting all over again;
-                yield return (Read(_path, _name, cursor));
-            }
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    // TODO: dispose managed state (managed objects)
-                }
-
-                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
-                // TODO: set large fields to null
-                disposedValue = true;
-            }
-        }
-
-        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
-        // ~PersistentQueue()
-        // {
-        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-        //     Dispose(disposing: false);
-        // }
-
-        void IDisposable.Dispose()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
+        public ICollection<TValue> Values => throw new NotImplementedException();
 
         #endregion
         #region Private
@@ -778,7 +1124,7 @@ namespace Dictionary
                 indexReader.Close();
                 stream.Close();
             }
-        }
+        }   
 
         #endregion
     }

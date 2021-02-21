@@ -36,7 +36,11 @@ namespace Dictionary
             Console.WriteLine("data[1]=" + d[1]);
             Console.WriteLine("data[2]=" + d[2]);
 
-            d.Remove(1);
+            Console.WriteLine("Remove[1]=" + d.Remove(1));
+            Console.WriteLine("Contains[1]=" + d.ContainsKey(1));
+            Console.WriteLine("Contains[2]=" + d.ContainsKey(2));
+            //Console.WriteLine("Contains[2,\"\"]=" + d.Contains(new KeyValuePair<int, string>(2, "")));
+            //Console.WriteLine("Contains[2,\"start\"]=" + d.Contains(new KeyValuePair<int, string>(2, "start")));
 
             Console.WriteLine("count" + d.Count);
             Console.WriteLine("data[0]=" + d[0]);
@@ -52,9 +56,25 @@ namespace Dictionary
             {
                 Console.WriteLine("Enumerate " + keyvalue.Key + " " + keyvalue.Value);
             }
-
             //System.Collections.Generic.Dictionary<int,string>.KeyCollection keys = d.Keys;
             //System.Collections.Generic.Dictionary<int, string>.ValueCollection values = d.Values;
+
+            d.Add(1, "between");
+            Console.WriteLine("Add out of sequence");
+            foreach (KeyValuePair<int, string> keyvalue in d)
+            {
+                Console.WriteLine("Enumerate " + keyvalue.Key + " " + keyvalue.Value);
+            }
+
+            Console.WriteLine("Remove[1]=" + d.Remove(1));
+            //Console.WriteLine("Remove[2,\"\"]=" + d.Remove(new KeyValuePair<int, string>(2, "")));
+            //Console.WriteLine("Remove[2,\"start\"]=" + d.Remove(new KeyValuePair<int, string>(2, "start")));
+
+            foreach (KeyValuePair<int, string> keyvalue in d)
+            {
+                Console.WriteLine("Enumerate " + keyvalue.Key + " " + keyvalue.Value);
+            }
+
 
             Console.WriteLine("--------");
             PersistentDictionary<int, string> pd = new PersistentDictionary<int, string>(true);
@@ -84,7 +104,11 @@ namespace Dictionary
             Console.WriteLine("data[1]=" + pd[1]);
             Console.WriteLine("data[2]=" + pd[2]);
 
-            pd.Remove(1);
+            Console.WriteLine("Remove[1]" + pd.Remove(1));
+            Console.WriteLine("Contains[1]=" + pd.ContainsKey(1));
+            Console.WriteLine("Contains[2]=" + pd.ContainsKey(2));
+            Console.WriteLine("Contains[2,\"\"]=" + pd.Contains(new KeyValuePair<int, string>(2, "" )));
+            Console.WriteLine("Contains[2,\"start\"]=" + pd.Contains(new KeyValuePair<int, string>(2, "start")));
 
             Console.WriteLine("count" + pd.Count);
             Console.WriteLine("data[0]=" + pd[0]);
@@ -100,6 +124,17 @@ namespace Dictionary
             //{
             //    Console.WriteLine("Enumerate " + key);
             //}
+
+            pd.Add(1, "between");
+            Console.WriteLine("Add out of sequence");
+            foreach (KeyValuePair<int, string> keyvalue in pd)
+            {
+                Console.WriteLine("Enumerate " + keyvalue.Key + " " + keyvalue.Value);
+            }
+
+            Console.WriteLine("Remove[1]=" + pd.Remove(1));
+            Console.WriteLine("Remove[2,\"\"]=" + pd.Remove(new KeyValuePair<int, string>(2, "")));
+            Console.WriteLine("Remove[2,\"start\"]=" + pd.Remove(new KeyValuePair<int, string>(2, "start")));
 
             foreach (KeyValuePair<int, string> keyvalue in pd)
             {
