@@ -75,7 +75,6 @@ namespace Dictionary
                 Console.WriteLine("Enumerate " + keyvalue.Key + " " + keyvalue.Value);
             }
 
-
             Console.WriteLine("--------");
             PersistentDictionary<int, string> pd = new PersistentDictionary<int, string>(true);
 

@@ -39,7 +39,7 @@ namespace Dictionary
         // 00 - unsigned int16 - length of data + 1
         //
 
-        #region Variables
+        #region Fields
 
         private string _path = "";
         private string _name = "PersistentDictionary";
