@@ -17,8 +17,8 @@ namespace Dictionary
         // Header
         // ------
         //
-        // 00 - unsigned int16 - number of elements size
-        // 00 - unsigned int16 - pointer to current element
+        // 00 - unsigned int16 - number of elements _size
+        // 00 - unsigned int16 - pointer to current element _pointer
         //
         // Data assuming int, string  (Key, Value)
         //
@@ -48,9 +48,9 @@ namespace Dictionary
         // Lets assume we will add the extension automatically but filename is not correct 
 
         private readonly object _lockObject = new Object();
-        private UInt16 _size = 0;
-        private UInt16 _pointer = 0;
-        private UInt16 _data = 4;
+        private UInt16 _size = 0;       // number of elements
+        private UInt16 _pointer = 0;    // pointer to current element
+        private UInt16 _data = 4;       // pointer to start of data area
         private int _cursor;
         private bool disposedValue;
 
