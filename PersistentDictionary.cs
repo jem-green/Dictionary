@@ -696,7 +696,7 @@ namespace Dictionary
         /// <param name="item"></param>
         public void Insert(int index, TValue item)
         {
-            if (index <= _size)
+            if ((index >= 0) && (index < _size))
             {
                 Write(_path, _name, index, item);
             }
