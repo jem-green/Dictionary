@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.IO;
 
 namespace Dictionary
 {
-    class PersistentDictionary<TKey,TValue> : IDictionary<TKey,TValue>, IEnumerator<TKey>
+    class PersistentDictionary<TKey,TValue> : IDictionary<TKey,TValue>, IEnumerator<TKey>, IDisposable
     {
         // Create a dictionary of key, value pairs that is actually a file
         // Need to consider locking as read and writes may conflict
@@ -52,7 +53,7 @@ namespace Dictionary
         private UInt16 _pointer = 0;    // pointer to current element
         private UInt16 _data = 4;       // pointer to start of data area
         private int _cursor;
-        private bool disposedValue;
+        private bool _disposedValue;
 
         #endregion
         #region Constructors
@@ -87,7 +88,7 @@ namespace Dictionary
         }
 
         #endregion
-        #region Proprties
+        #region Properties
 
         public int Count
         {
@@ -104,6 +105,18 @@ namespace Dictionary
                 return (false);
             }
         }
+		
+		public string Path
+        {
+            get
+            {
+                return (_path);
+            }
+            set
+            {
+                _path = value;
+            }
+        }
 
         public string Name
         {
@@ -117,17 +130,6 @@ namespace Dictionary
             }
         }
 
-        public string Path
-        {
-            get
-            {
-                return (_path);
-            }
-            set
-            {
-                _path = value;
-            }
-        }
 
         /// <summary>
         /// Make the indexer property.
@@ -142,7 +144,7 @@ namespace Dictionary
 
                 object data = null;
                 lock (_lockObject)
-                {
+                {			
                     // need to work through the index and find the associated key
 
                     Type keyParameterType = typeof(TKey);
@@ -194,13 +196,12 @@ namespace Dictionary
                     return ((TValue)Convert.ChangeType(data, typeof(TValue)));
                 }
             }
-
             set
             {
                 // Need to update the item at the index
                 // This is more complex for strings if the new string is longer than the
-                // available space from the previous string. Just occred to me that 
-                // might be a good idea to store the orinal length or space as new 
+                // available space from the previous string. Just occurred to me that 
+                // might be a good idea to store the original length or space as new 
                 // strings might end of getting shorter and shorter
 
                 object data = null;
@@ -336,6 +337,7 @@ namespace Dictionary
         public void Add(TKey key, TValue value)
         {
             string filenamePath = System.IO.Path.Combine(_path, _name);
+
             lock (_lockObject)
             {
                 Type keyParameterType = typeof(TKey);
@@ -505,7 +507,7 @@ namespace Dictionary
                 Type ValueParameterType = typeof(TValue);
 
                 // Logic is probably to open the index
-                // work through this and identify the data position in the file (note zero means that data is delted)
+                // work through this and identify the data position in the file (note zero means that data is deleted)
                 // read the data
                 // check if the data matches
                 // flag the match
@@ -572,7 +574,7 @@ namespace Dictionary
                 Type ValueParameterType = typeof(TValue);
 
                 // Logic is probably to open the index
-                // work through this and identify the data position in the file (note zero means that data is delted)
+                // work through this and identify the data position in the file (note zero means that data is deleted)
                 // read the data
                 // check if the data matches
                 // flag the match
@@ -621,7 +623,7 @@ namespace Dictionary
                 }
                 else
                 {
-                    return (Read(_path, _name, _cursor));
+                    return (Read(_cursor));
                 }
             }
         }
@@ -636,36 +638,36 @@ namespace Dictionary
                 }
                 else
                 {
-                    return ((TKey)Convert.ChangeType(Read(_path, _name, _cursor), typeof(TValue)));
+                    return ((TKey)Convert.ChangeType(Read(_cursor), typeof(TValue)));
                 }
             }
         }
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!_disposedValue)
             {
                 if (disposing)
                 {
                     // TODO: dispose managed state (managed objects)
                 }
 
-                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: free unmanaged resources (unmanaged objects) and override finalize
                 // TODO: set large fields to null
-                disposedValue = true;
+                _disposedValue = true;
             }
         }
 
-        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
-        // ~PersistentQueue()
-        // {
-        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-        //     Dispose(disposing: false);
-        // }
+        // TODO: override finalize only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        ~PersistentDictionary()
+        {
+            // Do not change this code. Put clean-up code in 'Dispose(bool disposing)' method
+            Dispose(disposing: false);
+        }
 
         void IDisposable.Dispose()
         {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            // Do not change this code. Put clean-up code in 'Dispose(bool disposing)' method
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }
@@ -680,7 +682,7 @@ namespace Dictionary
             {
                 // Return the current element and then on next function call 
                 // resume from next element rather than starting all over again;
-                yield return (Read(_path, _name, cursor));
+                yield return (Read(cursor));
             }
         }
 
@@ -690,7 +692,7 @@ namespace Dictionary
         }
 
         /// <summary>
-        /// Insrts a specific value at the index
+        /// Inserts a specific value at the index
         /// </summary>
         /// <param name="index"></param>
         /// <param name="item"></param>
@@ -698,7 +700,7 @@ namespace Dictionary
         {
             if ((index >= 0) && (index < _size))
             {
-                Write(_path, _name, index, item);
+                Create(index, item);
             }
             else
             {
@@ -730,11 +732,11 @@ namespace Dictionary
                 Type ValueParameterType = typeof(TValue);
 
                 // Logic is probably to open the index
-                // work through this and identify the data position in the file (note zero means that data is delted)
+                // work through this and identify the data position in the file (note zero means that data is deleted)
                 // read the data
                 // check if the data matches
                 // remove the data
-                // update the index file by removing the refernce
+                // update the index file by removing the reference
 
                 object data;
                 BinaryReader binaryReader = new BinaryReader(new FileStream(filenamePath + ".bin", FileMode.Open));
@@ -759,7 +761,6 @@ namespace Dictionary
                             break;
                         }
                     }
-
                 }
                 binaryReader.Close();
                 indexReader.Close();
@@ -786,7 +787,7 @@ namespace Dictionary
                     indexReader = new BinaryReader(stream);
                     BinaryWriter indexWriter = new BinaryWriter(stream);
 
-                    // copy the ponter and length data downwards 
+                    // copy the pointer and length data downwards 
 
                     for (int counter = index; counter < _size; counter++)
                     {
@@ -827,11 +828,11 @@ namespace Dictionary
                 Type ValueParameterType = typeof(TValue);
 
                 // Logic is probably to open the index
-                // work through this and identify the data position in the file (note zero means that data is delted)
+                // work through this and identify the data position in the file (note zero means that data is deleted)
                 // read the data
                 // check if the data matches
                 // remove the data
-                // update the index file by removing the refernce
+                // update the index file by removing the reference
 
                 object data;
                 BinaryReader binaryReader = new BinaryReader(new FileStream(filenamePath + ".bin", FileMode.Open));
@@ -898,7 +899,7 @@ namespace Dictionary
                     indexReader = new BinaryReader(stream);
                     BinaryWriter indexWriter = new BinaryWriter(stream);
 
-                    // copy the ponter and length data downwards 
+                    // copy the pointer and length data downwards 
 
                     for (int counter = index; counter < _size; counter++)
                     {
@@ -937,7 +938,7 @@ namespace Dictionary
             {
                 for (int i = 0; i < _size; ++i)
                 {
-                    KeyValuePair<TKey, TValue> keyValue = (KeyValuePair<TKey, TValue>)Read(_path, _name, i);
+                    KeyValuePair<TKey, TValue> keyValue = (KeyValuePair<TKey, TValue>)Read(i);
                     if (key.Equals(keyValue.Key))
                     {
                         value = keyValue.Value;
@@ -955,7 +956,7 @@ namespace Dictionary
                 TValue[] values = new TValue[_size];
                 for (int i = 0; i < _size; ++i)
                 {
-                    KeyValuePair<TKey,TValue> keyValue = (KeyValuePair <TKey, TValue>)Read(_path, _name, i);
+                    KeyValuePair<TKey,TValue> keyValue = (KeyValuePair <TKey, TValue>)Read(i);
                     values[i] = keyValue.Value;
                 }
                 return (values);
@@ -969,7 +970,7 @@ namespace Dictionary
                 TKey[] keys = new TKey[_size];
                 for (int i = 0; i < _size; ++i)
                 {
-                    KeyValuePair<TKey, TValue> keyValue = (KeyValuePair<TKey, TValue>)Read(_path, _name, i);
+                    KeyValuePair<TKey, TValue> keyValue = (KeyValuePair<TKey, TValue>)Read(i);
                     keys[i] = keyValue.Key;
                 }
                 return (keys);
@@ -978,6 +979,17 @@ namespace Dictionary
 
         #endregion
         #region Private
+
+        // General methods
+        // Open - 
+        // Reset -
+        // Close -
+        //
+        // Data methods (CRUD) 
+        // Create -
+        // Read -
+        // Update -
+        // Delete -
 
         private void Open(string path, string filename, bool reset)
         {
@@ -994,7 +1006,7 @@ namespace Dictionary
             {
                 // Need to delete both data and index
                 File.Delete(filenamePath + ".bin");
-                // Assumption here is the the index also exists
+                // Assumption here is the index also exists
                 File.Delete(filenamePath + ".idx");
                 Reset(path, filename);
             }
@@ -1021,7 +1033,129 @@ namespace Dictionary
 
         }
 
-        private object Read(string path, string filename, int index)
+        private void Close()
+        {
+            string filenamePath = System.IO.Path.Combine(_path, _name);
+            if (File.Exists(filenamePath + ".bin") == true)
+            {
+                // Need to delete both data and index
+                File.Delete(filenamePath + ".bin");
+                // Assumption here is the index also exists
+                if (File.Exists(filenamePath + ".idx") == true)
+                {
+                    File.Delete(filenamePath + ".idx");
+                }
+            }
+        }
+		
+		/// <summary>
+        /// Create a new record
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="item"></param>
+        private void Create(int index, object item)
+        {
+            lock (_lockObject)
+            {
+                Type keyParameterType = typeof(TKey);
+                Type valueParameterType = typeof(TValue);
+
+                string filenamePath = System.IO.Path.Combine(_path, _name);
+
+                // Write the data
+
+                // Appending will only work if the file is deleted and the updates start again
+                // Not sure if this is the best approach.
+                // With strings might have to do the write first and then update the pointer.
+
+                BinaryWriter binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.Append));
+
+                int offset = 0;
+                offset = offset + 1;    // Including the flag
+
+                if (keyParameterType == typeof(int))
+                {
+                    offset = offset + 4;
+                }
+                else if (keyParameterType == typeof(string))
+                {
+                    int l = (UInt16)Convert.ToString(item).Length;
+                    offset = offset + LEB128.Size(l) + l; 			// Includes the byte length parameter
+                                                                    // ** need to watch this as can be 2 bytes if length is > 127 characters
+                                                                    // ** https://en.wikipedia.org/wiki/LEB128
+                }
+
+                if (valueParameterType == typeof(int))
+                {
+                    offset = offset + 4;
+                }
+                else if (valueParameterType == typeof(string))
+                {
+                    int l = (UInt16)Convert.ToString(item).Length;
+                    offset = offset + LEB128.Size(l) + l;           // Includes the byte length parameter
+                                                                    // ** need to watch this as can be 2 bytes if length is > 127 characters
+                                                                    // ** https://en.wikipedia.org/wiki/LEB128
+
+                    string s = Convert.ToString(item);
+                    binaryWriter.Write(s);
+                }
+
+                byte flag = 0;  // Normal
+                binaryWriter.Write(flag);
+                if (keyParameterType == typeof(string))
+                {
+                    string s = Convert.ToString(item);
+                    binaryWriter.Write(s);
+                }
+
+
+                binaryWriter.Close();
+
+                // Write the header
+
+                binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.OpenOrCreate));
+                binaryWriter.Seek(0, SeekOrigin.Begin); // Move to start of the file
+                _size++;
+                binaryWriter.Write(_size);                  // Write the size
+                binaryWriter.Write((UInt16)(_pointer + offset));               // Write the pointer
+                binaryWriter.Close();
+
+                // need to insert the pointer as a new entry in the index
+
+                FileStream stream = new FileStream(filenamePath + ".idx", FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                BinaryReader indexReader = new BinaryReader(stream);
+                BinaryWriter indexWriter = new BinaryWriter(stream);
+
+                UInt16 position;
+                for (int counter = _size - 1; counter > index; counter--)
+                {
+                    position = (UInt16)((counter - 1) * 4);
+                    indexReader.BaseStream.Seek(position, SeekOrigin.Begin);       // Move to location of the index
+                    UInt16 pointer = indexReader.ReadUInt16();                              // Read the pointer from the index file
+                    UInt16 off = indexReader.ReadUInt16();
+                    position = (UInt16)(counter * 4);
+                    indexWriter.Seek(counter * 4, SeekOrigin.Begin);                        // Move to location of the index
+                    indexWriter.Write(pointer);
+                    indexWriter.Write(off);
+                }
+                position = (UInt16)(index * 4);
+                indexWriter.Seek(position, SeekOrigin.Begin);                        // Move to location of the index
+                indexWriter.Write(_pointer);
+                indexWriter.Write((UInt16)offset);
+                indexWriter.Close();
+                indexReader.Close();
+                stream.Close();
+            }
+        }   
+
+		
+		/// <summary>
+        /// Read the object at index position
+        /// </summary>
+        /// <param name="index"></param>
+        /// <returns></returns>
+
+        private object Read(int index)
         {
             KeyValuePair<TKey, TValue> keyValue;
             lock (_lockObject)
@@ -1030,7 +1164,7 @@ namespace Dictionary
                 Type keyParameterType = typeof(TKey);
                 Type valueParameterType = typeof(TValue);
 
-                string filenamePath = System.IO.Path.Combine(path, filename);
+                string filenamePath = System.IO.Path.Combine(_path, _name);
                 // Need to search the index file
 
                 BinaryReader indexReader = new BinaryReader(new FileStream(filenamePath + ".idx", FileMode.Open));
@@ -1076,101 +1210,147 @@ namespace Dictionary
             return (keyValue);
         }
 
-        private void Write(string path, string filename, int index, object item)
+
+        internal void Update(int index, object item)
+        {
+            // Need to update the item at the index
+            // This is more complex for strings if the new string is longer than the
+            // available space from the previous string. Just occurred to me that 
+            // might be a good idea to store the original length or space as new 
+            // strings might end of getting shorter and shorter
+
+            lock (_lockObject)
+            {
+                if ((index >= 0) && (index < _size))
+                {
+                    Type keyParameterType = typeof(TKey);
+                    Type valueParameterType = typeof(TValue);
+
+                    string filenamePath = System.IO.Path.Combine(_path, _name);
+
+                    BinaryReader indexReader = new BinaryReader(new FileStream(filenamePath + ".idx", FileMode.Open));
+                    indexReader.BaseStream.Seek(index * 4, SeekOrigin.Begin);                               // Get the index pointer
+                    UInt16 pointer = indexReader.ReadUInt16();                                              // Read the pointer from the index file
+                    int offset = indexReader.ReadUInt16();                                               // Read the length from the index file
+                    indexReader.Close();
+
+                    BinaryWriter binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.OpenOrCreate));
+                    int length = 0;
+                    length = length + 1;    // Including the flag
+                    if (valueParameterType == typeof(string))
+                    {
+                        int l = (UInt16)Convert.ToString(item).Length;
+                        length = length + LEB128.Size(l) + l;  // Includes the byte length parameter
+                                                               // ** need to watch this as can be 2 bytes if length is > 127 characters
+                        if (offset > length)
+                        {
+                            // If there is space write the data
+                            binaryWriter.Seek(_data + pointer, SeekOrigin.Begin);
+                            byte flag = 0;
+                            binaryWriter.Write(flag);
+                            string s = Convert.ToString(item);
+                            binaryWriter.Write(s);
+                        }
+                        else
+                        {
+                            // There is no space so flag the record to indicate its spare
+                            binaryWriter.Seek(_data + pointer, SeekOrigin.Begin);
+                            byte flag = 2;  // Spare
+                            binaryWriter.Write(flag);
+
+                            // Overwrite the index to use the new location at the end of the file
+                            BinaryWriter indexWriter = new BinaryWriter(new FileStream(filenamePath + ".idx", FileMode.Open));
+                            indexWriter.Seek(index * 4, SeekOrigin.Begin);   // Get the index pointer
+                            indexWriter.Write(_pointer);
+                            // don't re-write the length as this is still the previous gap
+                            indexWriter.Close();
+
+                            // Write the header
+
+                            binaryWriter.Seek(0, SeekOrigin.Begin);     // Move to start of the file
+                            binaryWriter.Write(_size);                  // Write the size
+                            _pointer = (UInt16)(_pointer + length);     //
+                            binaryWriter.Write(_pointer);               // Write the pointer
+                            binaryWriter.Close();
+
+                            // Write the data
+
+                            // Appending will only work if the file is deleted and the updates start again
+                            // Not sure if this is the best approach.
+                            // With strings might have to do the write first and then update the pointer.
+
+                            binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.Append));
+                            flag = 0;
+                            binaryWriter.Write(flag);
+                            string s = Convert.ToString(item);
+                            binaryWriter.Write(s);
+                        }
+                    }
+                    else
+                    {
+                        // Test
+                    }
+                    binaryWriter.Close();
+                }
+                else
+                {
+                    throw new IndexOutOfRangeException();
+                }
+            }
+        }
+
+        internal void Delete(int index)
         {
             lock (_lockObject)
             {
                 Type keyParameterType = typeof(TKey);
                 Type valueParameterType = typeof(TValue);
+                string filenamePath = System.IO.Path.Combine(_path, _name);
 
-                string filenamePath = System.IO.Path.Combine(path, filename);
-
-                // Write the data
-
-                // Appending will only work if the file is deleated and the updates start again
-                // Not sure if this is the best approach.
-                // With strings might have to do the write first and then update the pointer.
-
-                BinaryWriter binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.Append));
-
-                int offset = 0;
-                offset = offset + 1;    // Including the flag
-
-                if (keyParameterType == typeof(int))
-                {
-                    offset = offset + 4;
-                }
-                else if (keyParameterType == typeof(string))
-                {
-                    int l = (UInt16)Convert.ToString(item).Length;
-                    offset = offset + LEB128.Size(l) + l; 			// Includes the byte length parameter
-                                                                    // ** need to watch this as can be 2 bytes if length is > 127 characters
-                                                                    // ** https://en.wikipedia.org/wiki/LEB128
-                }
-
-                if (valueParameterType == typeof(int))
-                {
-                    offset = offset + 4;
-                }
-                else if (valueParameterType == typeof(string))
-                {
-                    int l = (UInt16)Convert.ToString(item).Length;
-                    offset = offset + LEB128.Size(l) + l;           // Includes the byte length parameter
-                                                                    // ** need to watch this as can be 2 bytes if length is > 127 characters
-                                                                    // ** https://en.wikipedia.org/wiki/LEB128
-
-                    string s = Convert.ToString(item);
-                    binaryWriter.Write(s);
-                }
-
-                byte flag = 0;
-                binaryWriter.Write(flag);
-                if (keyParameterType == typeof(string))
-                {
-                    string s = Convert.ToString(item);
-                    binaryWriter.Write(s);
-                }
-
-
-                binaryWriter.Close();
+                BinaryReader indexReader = new BinaryReader(new FileStream(filenamePath + ".idx", FileMode.Open));
+                indexReader.BaseStream.Seek(index * 4, SeekOrigin.Begin);                               // Get the index pointer
+                UInt16 pointer = indexReader.ReadUInt16();                                              // Read the pointer from the index file
+                indexReader.Close();
 
                 // Write the header
 
-                binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.OpenOrCreate));
+                BinaryWriter binaryWriter = new BinaryWriter(new FileStream(filenamePath + ".bin", FileMode.OpenOrCreate));
                 binaryWriter.Seek(0, SeekOrigin.Begin); // Move to start of the file
-                _size++;
+                _size--;
                 binaryWriter.Write(_size);                  // Write the size
-                binaryWriter.Write((UInt16)(_pointer + offset));               // Write the pointer
+
+                // Flag the record to indicate its deleted
+
+                binaryWriter.Seek(_data + pointer, SeekOrigin.Begin);
+                byte flag = 1;  // deleted
+                binaryWriter.Write(flag);
                 binaryWriter.Close();
 
-                // need to insert the ponter as a new entry in the index
+                // Overwrite the index
 
                 FileStream stream = new FileStream(filenamePath + ".idx", FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-                BinaryReader indexReader = new BinaryReader(stream);
+                indexReader = new BinaryReader(stream);
                 BinaryWriter indexWriter = new BinaryWriter(stream);
 
-                UInt16 position;
-                for (int counter = _size - 1; counter > index; counter--)
+                // copy the pointer and length data downwards
+                // possibly a bulk method here will be quicker rather than
+                // record by record
+
+                for (int counter = index; counter < _size; counter++)
                 {
-                    position = (UInt16)((counter - 1) * 4);
-                    indexReader.BaseStream.Seek(position, SeekOrigin.Begin);       // Move to location of the index
-                    UInt16 pointer = indexReader.ReadUInt16();                              // Read the pointer from the index file
-                    UInt16 off = indexReader.ReadUInt16();
-                    position = (UInt16)(counter * 4);
-                    indexWriter.Seek(counter * 4, SeekOrigin.Begin);                        // Move to location of the index
+                    indexReader.BaseStream.Seek((counter + 1) * 4, SeekOrigin.Begin); // Move to location of the index
+                    pointer = indexReader.ReadUInt16();                                              // Read the pointer from the index file
+                    UInt16 offset = indexReader.ReadUInt16();
+                    indexWriter.Seek(counter * 4, SeekOrigin.Begin); // Move to location of the index
                     indexWriter.Write(pointer);
-                    indexWriter.Write(off);
+                    indexWriter.Write(offset);
                 }
-                position = (UInt16)(index * 4);
-                indexWriter.Seek(position, SeekOrigin.Begin);                        // Move to location of the index
-                indexWriter.Write(_pointer);
-                indexWriter.Write((UInt16)offset);
+                indexWriter.BaseStream.SetLength(_size * 4);    // Trim the file as Add uses append
                 indexWriter.Close();
                 indexReader.Close();
                 stream.Close();
             }
-        }   
-
+        }
         #endregion
     }
 

@@ -1,16 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Reflection;
 
 namespace Dictionary
 {
     class Program
     {
         static void Main(string[] args)
-        {          
+        {
+            // Test the standard Dictionary
 
             Dictionary<int, string> d = new Dictionary<int, string>();
 
+            d.Clear();
             d.Add(0, "start");
             d.Add(1, "next");
             d.Add(2, "end");
@@ -85,8 +88,13 @@ namespace Dictionary
             Console.WriteLine("value=" + item);
 
             Console.WriteLine("--------");
+
+            // Test the Persistent Dictionary
+
+
             PersistentDictionary<int, string> pd = new PersistentDictionary<int, string>(true);
 
+            pd.Clear();
             pd.Add(0,"start");
             pd.Add(1,"next");
             pd.Add(2,"end");
@@ -156,7 +164,59 @@ namespace Dictionary
             Console.WriteLine("TryKeyValue[0]=" + pd.TryGetValue(0, out item));
             Console.WriteLine("value=" + item);
 
+            // Test the PersistentDictionary private methods
+
+            PersistentDictionary<int, string> ppd = new PersistentDictionary<int,string>(true);
+            object obj = RunInstanceMethod(typeof(Dictionary.PersistentDictionary<int,string>), "Create", ppd, new object[2] { 0, "start" });
+            obj = RunInstanceMethod(typeof(Dictionary.PersistentDictionary<int,string>), "Create", ppd, new object[2] { 1, "next" });
+            obj = RunInstanceMethod(typeof(Dictionary.PersistentDictionary<int,string>), "Create", ppd, new object[2] { 2, "end" });
+            obj = RunInstanceMethod(typeof(Dictionary.PersistentDictionary<int,string>), "Delete", ppd, new object[1] { 1 });
+            obj = RunInstanceMethod(typeof(Dictionary.PersistentDictionary<int,string>), "Create", ppd, new object[2] { 1, "next" });
+            obj = RunInstanceMethod(typeof(Dictionary.PersistentDictionary<int,string>), "Update", ppd, new object[2] { 1, "to" });
+            obj = RunInstanceMethod(typeof(Dictionary.PersistentDictionary<int,string>), "Update", ppd, new object[2] { 1, "longer" });
+
+            for (int i = 0; i < 3; i++)
+            {
+                obj = RunInstanceMethod(typeof(Dictionary.PersistentDictionary<int,string>), "Read", ppd, new object[1] { i });
+                string s = obj.ToString();
+                Console.WriteLine(s);
+            }
+            obj = RunInstanceMethod(typeof(Dictionary.PersistentDictionary<int,string>), "Close", ppd, null);
+
         }
+
+        public static object RunStaticMethod(System.Type t, string strMethod, object[] aobjParams)
+        {
+            BindingFlags eFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+            return RunMethod(t, strMethod, null, aobjParams, eFlags);
+        }
+
+        public static object RunInstanceMethod(System.Type t, string strMethod, object objInstance, object[] aobjParams)
+        {
+            BindingFlags eFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            return RunMethod(t, strMethod, objInstance, aobjParams, eFlags);
+        }
+
+        private static object RunMethod(System.Type t, string strMethod, object objInstance, object[] aobjParams, BindingFlags eFlags)
+        {
+            MethodInfo m;
+            try
+            {
+                m = t.GetMethod(strMethod, eFlags);
+                if (m == null)
+                {
+                    throw new ArgumentException("There is no method '" + strMethod + "' for type '" + t.ToString() + "'.");
+                }
+
+                object objRet = m.Invoke(objInstance, aobjParams);
+                return objRet;
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
     }
 }
  
